@@ -1,10 +1,12 @@
 # zepHIL
 
-A pytest plugin for Hardware-in-the-Loop (HIL) testing of Zephyr devices. 
+A pytest plugin for Hardware-in-the-Loop (HIL) testing of Zephyr devices.
 
 By design, this plugin **does not depend on `west`**, nor does it require a full Zephyr repository or build directory (unlike `twister`). It is designed for lightweight, standalone integration testing where you have a firmware binary and a physical board.
 
 The HIL test setup assumes a single board running Zephyr OS connected via Serial (for shell interaction) and optionally J-Link (for flashing/control).
+
+Support for additional boards can be added easily.
 
 ## Installation
 
@@ -42,7 +44,7 @@ def test_shell_version(dut):
     """Example test checking the Zephyr version."""
     # Send 'version' command and get output
     output = dut.shell_exec_command("version")
-    
+
     # Assert expected output
     assert any("Zephyr version" in line for line in output)
 
@@ -50,9 +52,9 @@ def test_device_reboot(dut):
     """Example accessing the lower-level board object."""
     # Use the high-level shell abstraction to reboot via shell command
     dut.shell_reset()
-    
+
     # Or use the low-level board object directly (if supported by backend)
-    # dut.reset() 
+    # dut.reset()
 ```
 
 ### Running Tests

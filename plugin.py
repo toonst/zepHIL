@@ -62,41 +62,22 @@ def logfile(request):
 @pytest.fixture(scope="module")
 
 def dut(request, port, baud, fw_image, logfile):
-
     board_name = request.getfixturevalue("board_name")
 
-
-
     if not board_name:
-
         pytest.skip("No --board specified for HIL test.")
 
     if not port:
-
         pytest.skip("No --port specified for HIL test.")
 
-
-
     print(f"\n[Zephil] Setting up DUT: {board_name} on {port}@{baud}")
-
-    
-
     transport = SerialTransport(port=port, baudrate=baud)
 
-
-
     if board_name == "frdm_rw612":
-
         from zephil.frdm_rw612 import FRDMRW612
-
         dut = FRDMRW612(transport=transport, fw_image=fw_image, logfile=logfile, name=board_name)
-
     else:
-
         pytest.skip("Board not supported")
 
-
-
     with dut.started():
-
         yield dut
