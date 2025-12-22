@@ -27,7 +27,7 @@ uv pip install -e ".[dev]"
 `zephil` adds several command-line options to pytest for configuring the hardware connection:
 
 | Option | Description | Required | Example |
-|str|str|str|str|
+|---|---|---|---|
 | `--board` | Target board identifier | Yes | `frdm_rw612` |
 | `--port` | Serial port for shell interaction | Yes | `/dev/tty.usbmodem12345` |
 | `--baud` | Serial baud rate | No (Default: 115200) | `115200` |
@@ -35,24 +35,24 @@ uv pip install -e ".[dev]"
 
 ### Writing Tests
 
-The plugin provides two main fixtures: `dut` (Device Under Test) and `shell`.
+The plugin provides the `dut` (Device Under Test) fixture which represents the board and handles shell interaction.
 
 ```python
-def test_shell_version(shell):
+def test_shell_version(dut):
     """Example test checking the Zephyr version."""
     # Send 'version' command and get output
-    output = shell.exec_command("version")
+    output = dut.shell_exec_command("version")
     
     # Assert expected output
     assert any("Zephyr version" in line for line in output)
 
-def test_device_reboot(dut, shell):
+def test_device_reboot(dut):
     """Example accessing the lower-level board object."""
-    # Use the high-level shell abstraction
-    shell.reset()
+    # Use the high-level shell abstraction to reboot via shell command
+    dut.shell_reset()
     
-    # Or use the low-level board object directly
-    dut.reset() # If supported by the specific board backend (e.g., JLink)
+    # Or use the low-level board object directly (if supported by backend)
+    # dut.reset() 
 ```
 
 ### Running Tests
