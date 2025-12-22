@@ -7,6 +7,7 @@ class JLinkBoard(Board):
         super().__init__(*args, **kwargs)
         self.chip_name = chip_name
         self.jlink = None
+        self.serial_number = 1234 # To Do: fix this, autmatically detect
 
     def _connect(self):
         self.jlink = pylink.JLink()

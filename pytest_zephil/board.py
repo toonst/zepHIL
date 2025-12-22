@@ -6,12 +6,7 @@ import time
 import serial
 
 class Board(ABC):
-    def __init__(self, port: str, baudrate: int, fw_image: str | None, serial_number: str | None = None,
-                 bmp_port: str | None = None):
-        if serial_number is not None:
-            self.serial_number = serial_number
-        if bmp_port is not None:
-            self.bmp_port = bmp_port
+    def __init__(self, port: str, baudrate: int, fw_image: str | None):
         self.port = port
         self.baudrate = baudrate
         self.fw_image = fw_image

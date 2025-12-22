@@ -1,6 +1,4 @@
 import pytest
-import os
-from pytest_zephil.board import Board
 from pytest_zephil.shell import Shell
 
 def pytest_addoption(parser):
@@ -33,18 +31,6 @@ def pytest_addoption(parser):
         dest="fw_image",
         help="Firmware binary to program to device"
     )
-    group.addoption(
-        "--serial-number",
-        action="store",
-        dest="serial_number",
-        help="Serial number to identify on-board debugger"
-    )
-    group.addoption(
-        "--bmp-port",
-        action="store",
-        dest="bmp_port",
-        help="Serial port of a BlackMagicProbe programmer"
-    )
 
 @pytest.fixture(scope="session")
 def board_name(request):
@@ -62,24 +48,10 @@ def baud(request):
 def fw_image(request):
     return request.config.getoption("fw_image")
 
-@pytest.fixture(scope="session")
-def serial_number(request):
-    return request.config.getoption("serial_number")
-
-@pytest.fixture(scope="session")
-def bmp_port(request):
-    if request.config.getoption("bmp_port") is not None:
-        return request.config.getoption("bmp_port")
-    else:
-        return os.environ.get('CI_BLACKMAGICPROBE_PORT')
-
 @pytest.fixture(scope="module")
-def dut(request, port, baud, fw_image, serial_number, bmp_port):
+def dut(request, port, baud, fw_image):
     board_name = request.getfixturevalue("board_name")
 
-    # Here we should ideally check board_name to determine if it's a supported board
-    # For now, we will just instantiate our generic Board.
-    # In a real scenario, you'd likely have a factory function or a dict mapping names to Board subclasses.
     if not board_name:
         pytest.skip("No --board specified for HIL test.")
     if not port:
@@ -89,11 +61,9 @@ def dut(request, port, baud, fw_image, serial_number, bmp_port):
 
     if board_name == "frdm_rw612":
         from pytest_zephil.frdm_rw612 import FRDMRW612
-        dut = FRDMRW612(port=port, baudrate=baud, fw_image=fw_image,
-                        serial_number=serial_number, bmp_port=bmp_port)
+        dut = FRDMRW612(port=port, baudrate=baud, fw_image=fw_image)
     else:
-        dut = Board(port=port, baudrate=baud, fw_image=fw_image,
-                    serial_number=serial_number, bmp_port=bmp_port)
+        pytest.skip("Board not supported")
 
     with dut.started():
         yield dut

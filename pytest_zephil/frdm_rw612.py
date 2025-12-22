@@ -1,4 +1,3 @@
-from pytest_zephil.board import Board
 from pytest_zephil.jlinkboard import JLinkBoard
 
 class FRDMRW612(JLinkBoard):
