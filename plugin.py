@@ -1,5 +1,6 @@
 import pytest
 from zephil.shell import Shell
+from zephil.transport import SerialTransport
 
 def pytest_addoption(parser):
     """Register command line options."""
@@ -60,26 +61,43 @@ def logfile(request):
     return request.config.getoption("logfile")
 
 @pytest.fixture(scope="module")
+
 def dut(request, port, baud, fw_image, logfile):
+
     board_name = request.getfixturevalue("board_name")
 
+
+
     if not board_name:
+
         pytest.skip("No --board specified for HIL test.")
+
     if not port:
+
         pytest.skip("No --port specified for HIL test.")
+
+
 
     print(f"\n[Zephil] Setting up DUT: {board_name} on {port}@{baud}")
 
+    
+
+    transport = SerialTransport(port=port, baudrate=baud)
+
+
+
     if board_name == "frdm_rw612":
+
         from zephil.frdm_rw612 import FRDMRW612
-        dut = FRDMRW612(port=port, baudrate=baud, fw_image=fw_image, logfile=logfile)
+
+        dut = FRDMRW612(transport=transport, fw_image=fw_image, logfile=logfile, name=board_name)
+
     else:
+
         pytest.skip("Board not supported")
 
-    with dut.started():
-        yield dut
 
-@pytest.fixture(scope="module")
-def shell(dut):
-    """Fixture that provides a Shell instance attached to the DUT."""
-    return Shell(dut)
+
+    with dut.started():
+
+        yield dut

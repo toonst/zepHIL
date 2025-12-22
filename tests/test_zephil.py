@@ -10,6 +10,7 @@ def test_zephil_fixture(pytester, mocker):
     mock_serial_instance = MagicMock()
     mock_serial_instance.read.return_value = b""
     mock_serial_instance.in_waiting = 0
+    mock_serial_instance.is_open = True # transport.is_open checks this
     mock_serial_instance.__enter__.return_value = mock_serial_instance
     mock_serial_instance.__exit__.return_value = None
 
@@ -21,6 +22,7 @@ def test_zephil_fixture(pytester, mocker):
 import pytest
 import re # Added import
 from zephil.board import Board
+from zephil.transport import Transport
 from zephil.shell import Shell, ShellMCUbootArea, ShellMCUbootCommandParsed
 import time
 from unittest.mock import MagicMock
@@ -32,33 +34,35 @@ time.sleep = mock_sleep
 
 def test_dut_fixture_type(dut):
     assert isinstance(dut, Board)
-    assert dut.serial is not None
+    assert isinstance(dut.transport, Transport)
+    assert dut.transport.is_open
 
-def test_shell_fixture_type(shell):
-    assert isinstance(shell, Shell)
-    assert isinstance(shell.dut, Board)
+def test_shell_attached_to_dut(dut):
+    assert isinstance(dut.shell, Shell)
+    assert dut.shell.dut is dut
 
-def test_shell_interaction(shell):
+def test_shell_interaction(dut):
     # Mock the dut's readlines_until to simulate response
-    shell.dut.readlines_until = MagicMock(side_effect=[
+    dut.readlines_until = MagicMock(side_effect=[
         # First call for command echo
         ["version"],
         # Second call for prompt after command execution
         ["Zephyr version 3.7.0", "uart:~$"]
     ])
-    shell.dut.clear_buffer = MagicMock()
-    shell.dut.send_all = MagicMock()
+    dut.clear_buffer = MagicMock()
+    dut.send_all = MagicMock()
     
-    lines = shell.exec_command("version")
+    lines = dut.shell.exec_command("version")
     
-    assert shell.dut.clear_buffer.called
-    assert shell.dut.send_all.called
-    assert shell.dut.readlines_until.call_count == 2
+    assert dut.clear_buffer.called
+    assert dut.send_all.called
+    assert dut.readlines_until.call_count == 2
     
     assert "Zephyr version 3.7.0" in lines
     assert "uart:~$" in lines # Prompt should be in raw output
 
-def test_shell_get_filtered_output(shell):
+def test_shell_get_filtered_output(dut):
+    shell = dut.shell
     assert shell.prompt == "uart:~$" # Assert the exact prompt value
     output = [
         "uart:~$",

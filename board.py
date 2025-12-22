@@ -5,24 +5,32 @@ import time
 import logging
 import os
 import queue
+from abc import ABC, abstractmethod
+from contextlib import contextmanager
+import re
+import time
+import logging
+import os
+import queue
 import threading
 
-import serial
+from zephil.transport import Transport
+from zephil.shell import Shell
 
 class Board(ABC):
-    def __init__(self, port: str, baudrate: int, fw_image: str | None, logfile: str | None = None):
-        self.port = port
-        self.baudrate = baudrate
+    def __init__(self, transport: Transport, fw_image: str | None, logfile: str | None = None, name: str = "board"):
+        self.transport = transport
         self.fw_image = fw_image
         self.logfile = logfile
+        self.name = name
         self.received: bytes = b''
-        self.serial: serial.Serial | None = None
         
         self._queue = queue.Queue()
         self._stop_event = threading.Event()
         self._thread = None
         self._log_buffer = b''
         self.file_logger = None
+        self.shell: Shell | None = None
 
     def _setup_logger(self):
         if not self.logfile:
@@ -33,7 +41,7 @@ class Board(ABC):
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
 
-        self.file_logger = logging.getLogger(f"zephil_{self.port}")
+        self.file_logger = logging.getLogger(f"zephil_{self.name}")
         self.file_logger.setLevel(logging.DEBUG)
         self.file_logger.propagate = False
         
@@ -59,13 +67,15 @@ class Board(ABC):
     def _read_loop(self):
         while not self._stop_event.is_set():
             try:
-                if self.serial and self.serial.is_open:
+                if self.transport.is_open:
                     # Block for up to timeout (0.1s) waiting for at least one byte
-                    data = self.serial.read(1)
+                    # The transport.read should ideally handle timeout or non-blocking
+                    # But our SerialTransport wrapper uses serial's timeout.
+                    data = self.transport.read(1)
                     if data:
                         # If we got data, read whatever else is immediately available
-                        if self.serial.in_waiting:
-                            data += self.serial.read(self.serial.in_waiting)
+                        if self.transport.in_waiting:
+                            data += self.transport.read(self.transport.in_waiting)
                         self._handle_incoming_data(data)
                 else:
                     break
@@ -79,11 +89,8 @@ class Board(ABC):
             
         self._setup_logger()
 
-        # timeout=0.1 allows read() to return periodically so we can check logical timeouts
-        with serial.Serial(port=self.port,
-                           baudrate=self.baudrate,
-                           timeout=0.1) as ser:
-            self.serial = ser
+        try:
+            self.transport.open()
             
             # Start background thread
             self._stop_event.clear()
@@ -93,16 +100,19 @@ class Board(ABC):
             # Wait for reboot
             time.sleep(6)
             
-            try:
-                yield self
-            finally:
-                self._stop_event.set()
-                if self._thread:
-                    self._thread.join(timeout=2)
-                    self._thread = None
+            self.shell = Shell(self)
+
+            yield self
+        finally:
+            self._stop_event.set()
+            if self._thread:
+                self._thread.join(timeout=2)
+                self._thread = None
+            self.transport.close()
+            self.shell = None
 
     def receive_some(self) -> bytes | None:
-        if self.serial is None:
+        if not self.transport.is_open:
              raise RuntimeError("Board not started")
         
         try:
@@ -111,15 +121,15 @@ class Board(ABC):
             return None
 
     def send_all(self, data: bytes) -> None:
-        if self.serial is None:
+        if not self.transport.is_open:
              raise RuntimeError("Board not started")
-        self.serial.write(data)
+        self.transport.write(data)
 
     def clear_buffer(self):
         """Clear internal buffer, serial input buffer, and the thread queue."""
         self.received = b''
-        if self.serial:
-            self.serial.reset_input_buffer()
+        if self.transport.is_open:
+            self.transport.flush_input()
         
         # Drain the queue
         try:
@@ -127,6 +137,12 @@ class Board(ABC):
                 self._queue.get_nowait()
         except queue.Empty:
             pass
+    
+    def shell_cmd(self, command: str, timeout: float | None = None):
+        if self.shell is None:
+             raise RuntimeError("Shell not initialized")
+        return self.shell.exec_command(command, timeout)
+
 
     def readline(self, timeout=None):
         """

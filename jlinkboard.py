@@ -3,8 +3,8 @@ import pylink
 from .board import Board
 
 class JLinkBoard(Board):
-    def __init__(self, chip_name, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, chip_name, transport, *args, **kwargs):
+        super().__init__(transport, *args, **kwargs)
         self.chip_name = chip_name
         self.jlink = None
         self.serial_number = 1234 # To Do: fix this, autmatically detect
