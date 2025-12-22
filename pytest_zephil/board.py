@@ -6,8 +6,8 @@ import time
 import serial
 
 class Board(ABC):
-    def __init__(self, port, baudrate, fw_image, serial_number=None,
-                 bmp_port=None):
+    def __init__(self, port: str, baudrate: int, fw_image: str | None, serial_number: str | None = None,
+                 bmp_port: str | None = None):
         if serial_number is not None:
             self.serial_number = serial_number
         if bmp_port is not None:
@@ -31,14 +31,16 @@ class Board(ABC):
             time.sleep(6)
             yield self
 
-    def receive_some(self) -> bytes:
-        assert self.serial is not None
+    def receive_some(self) -> bytes | None:
+        if self.serial is None:
+             raise RuntimeError("Board not started")
         # read_all() or read(size) depending on what is available; 
         # using read() with timeout set in __init__ serves similar purpose to receive_some
         return self.serial.read(self.serial.in_waiting or 1)
 
-    def send_all(self, data: bytes):
-        assert self.serial is not None
+    def send_all(self, data: bytes) -> None:
+        if self.serial is None:
+             raise RuntimeError("Board not started")
         self.serial.write(data)
 
     def clear_buffer(self):
