@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytest-zephil"
+version = "0.1.0"
+description = "A pytest plugin for Zephyr Hardware-in-the-Loop testing"
+readme = "README.md"
+authors = [{ name = "ToonProf", email = "author@example.com" }]
+license = { text = "MIT" }
+classifiers = [
+    "Framework :: Pytest",
+    "Programming Language :: Python :: 3",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "pytest>=7.0.0",
+    "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest-mock>=3.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/toonprof/zepHIL"
+
+[project.entry-points.pytest11]
+zephil = "pytest_zephil.plugin"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
