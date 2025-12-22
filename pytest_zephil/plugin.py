@@ -1,6 +1,7 @@
 import pytest
 import os
 from pytest_zephil.board import Board
+from pytest_zephil.shell import Shell
 
 def pytest_addoption(parser):
     """Register command line options."""
@@ -91,3 +92,8 @@ def dut(request, port, baud, fw_image, serial_number, bmp_port):
 
     with dut.started():
         yield dut
+
+@pytest.fixture(scope="module")
+def shell(dut):
+    """Fixture that provides a Shell instance attached to the DUT."""
+    return Shell(dut)

@@ -41,57 +41,66 @@ class Board(ABC):
         assert self.serial is not None
         self.serial.write(data)
 
-    def wait_for_regex_in_line(self, regex, timeout_s=20, log=True):
+    def clear_buffer(self):
+        """Clear internal buffer and serial input buffer."""
+        self.received = b''
+        if self.serial:
+            self.serial.reset_input_buffer()
+
+    def readline(self, timeout=None):
+        """
+        Read a single line from the serial port.
+        Uses the internal buffer first.
+        """
         start_time = time.time()
+        while True:
+            if timeout and time.time() - start_time > timeout:
+                raise TimeoutError("Timeout reading line")
+
+            if b'\n' in self.received:
+                line_bytes, rest = self.received.split(b'\n', 1)
+                self.received = rest
+                return line_bytes.replace(b'\r', b'').decode('utf-8', errors='ignore')
+
+            chunk = self.receive_some()
+            if chunk:
+                # print(chunk.replace(b'\r', b'').decode('utf-8', errors='ignore'), end='', flush=True)
+                self.received += chunk
+            else:
+                # If no data and no timeout specified, or purely relying on serial timeout
+                if timeout is None:
+                     # Avoid tight loop if we rely on receive_some's internal blocking or lack thereof
+                     # But receive_some (serial.read) has a 0.1s timeout from __init__
+                     pass
+
+    def readlines_until(self, regex=None, timeout_s=20):
+        start_time = time.time()
+        lines_captured = []
         while True:
             if time.time() - start_time > timeout_s:
                 raise TimeoutError(f"Timeout waiting for {regex}")
 
-            # Check in already received data
-            lines = self.received.splitlines(keepends=True)
+            # Check lines in buffer
+            # We strictly only process lines ending in \n to avoid matching partials
+            while b'\n' in self.received:
+                line_bytes, rest = self.received.split(b'\n', 1)
+                # line_bytes does not contain \n.
+                # But it might contain \r.
+                decoded_line = line_bytes.replace(b'\r', b'').decode('utf-8', errors='ignore')
+                lines_captured.append(decoded_line)
+                
+                # Update buffer
+                self.received = rest
+                
+                if regex and re.search(regex, decoded_line):
+                    return lines_captured
 
-            for idx, line in enumerate(lines):
-                # Only check complete lines (ending in newline) unless it's the only content and we are looping
-                # But original logic checked everything. Let's stick to decoding lines.
-                decoded_line = line.replace(b'\r', b'').replace(b'\n', b'').decode('utf-8', errors='ignore')
-                regex_search = re.search(regex, decoded_line)
-                if regex_search:
-                    # Drop this and any previous lines
-                    self.received = b''.join(lines[idx+1:])
-                    return regex_search
-
-            # Drop all but last line (in case it is not complete)
-            if len(lines) > 1:
-                self.received = lines[-1]
-
-            # Receive more data
+            # Read more
             chunk = self.receive_some()
-            if not chunk:
-                # If read returns nothing (timeout), just continue loop to check total timeout
-                continue
-
-            if log:
+            if chunk:
+                # Optional: print raw chunk
                 print(chunk.replace(b'\r', b'').decode('utf-8', errors='ignore'), end='', flush=True)
-
-            self.received = self.received + chunk
-
-    def send_cmd(self, cmd, wait_str=None):
-        if wait_str == None:
-            wait_str = self.PROMPT
-        self.send_all('\r\n\r\n'.encode())
-        self.wait_for_regex_in_line(self.PROMPT)
-        self.send_all('{}\r\n'.format(cmd).encode())
-        self.wait_for_regex_in_line(wait_str)
-
-    @property
-    def PROMPT(self):
-        return 'uart:'
-
-    def reset(self):
-        self.send_cmd('kernel reboot cold', wait_str='Booting Zephyr OS')
-
-    def set_setting(self, key, value):
-        self.send_cmd(f'settings set {key} {value}', wait_str='saved')
+                self.received += chunk
 
     def program(self, fw_image):
         pass
