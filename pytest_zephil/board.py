@@ -60,12 +60,13 @@ class Board(ABC):
         while not self._stop_event.is_set():
             try:
                 if self.serial and self.serial.is_open:
-                    if self.serial.in_waiting:
-                        data = self.serial.read(self.serial.in_waiting)
-                        if data:
-                            self._handle_incoming_data(data)
-                    else:
-                        time.sleep(0.01)
+                    # Block for up to timeout (0.1s) waiting for at least one byte
+                    data = self.serial.read(1)
+                    if data:
+                        # If we got data, read whatever else is immediately available
+                        if self.serial.in_waiting:
+                            data += self.serial.read(self.serial.in_waiting)
+                        self._handle_incoming_data(data)
                 else:
                     break
             except Exception:
@@ -115,10 +116,17 @@ class Board(ABC):
         self.serial.write(data)
 
     def clear_buffer(self):
-        """Clear internal buffer and serial input buffer."""
+        """Clear internal buffer, serial input buffer, and the thread queue."""
         self.received = b''
         if self.serial:
             self.serial.reset_input_buffer()
+        
+        # Drain the queue
+        try:
+            while True:
+                self._queue.get_nowait()
+        except queue.Empty:
+            pass
 
     def readline(self, timeout=None):
         """
