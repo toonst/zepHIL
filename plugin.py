@@ -1,5 +1,4 @@
 import pytest
-from zephil.shell import Shell
 from zephil.transport import SerialTransport
 
 def pytest_addoption(parser):

@@ -1,6 +1,5 @@
 import pytest
-from zephil.board import Board
-from zephil.shell import Shell, ShellMCUbootArea, ShellMCUbootCommandParsed
+from zephil.board import Board, ShellMCUbootArea, ShellMCUbootCommandParsed
 from unittest.mock import MagicMock
 
 def test_zephil_fixture(pytester, mocker):
@@ -21,9 +20,8 @@ def test_zephil_fixture(pytester, mocker):
     pytester.makepyfile(r"""
 import pytest
 import re # Added import
-from zephil.board import Board
+from zephil.board import Board, ShellMCUbootArea, ShellMCUbootCommandParsed
 from zephil.transport import Transport
-from zephil.shell import Shell, ShellMCUbootArea, ShellMCUbootCommandParsed
 import time
 from unittest.mock import MagicMock
 
@@ -37,10 +35,6 @@ def test_dut_fixture_type(dut):
     assert isinstance(dut.transport, Transport)
     assert dut.transport.is_open
 
-def test_shell_attached_to_dut(dut):
-    assert isinstance(dut.shell, Shell)
-    assert dut.shell.dut is dut
-
 def test_shell_interaction(dut):
     # Mock the dut's readlines_until to simulate response
     dut.readlines_until = MagicMock(side_effect=[
@@ -52,7 +46,7 @@ def test_shell_interaction(dut):
     dut.clear_buffer = MagicMock()
     dut.send_all = MagicMock()
     
-    lines = dut.shell.exec_command("version")
+    lines = dut.shell_exec_command("version")
     
     assert dut.clear_buffer.called
     assert dut.send_all.called
@@ -62,8 +56,7 @@ def test_shell_interaction(dut):
     assert "uart:~$" in lines # Prompt should be in raw output
 
 def test_shell_get_filtered_output(dut):
-    shell = dut.shell
-    assert shell.prompt == "uart:~$" # Assert the exact prompt value
+    assert dut.shell_prompt == "uart:~$" # Assert the exact prompt value
     output = [
         "uart:~$",
         "Zephyr version 3.7.0",
@@ -72,7 +65,7 @@ def test_shell_get_filtered_output(dut):
         "uart:~$" + " command_echo",
         "      <inf> info message"
     ]
-    filtered = shell.get_filtered_output(output)
+    filtered = dut.shell_get_filtered_output(output)
     expected = [
         "Zephyr version 3.7.0",
         "Some other line"
@@ -117,4 +110,4 @@ def test_mcuboot_command_parsed():
     result = pytester.runpytest("--board=frdm_rw612", "--port=/dev/ttyUSB0", "--baud=115200")
 
     # Check results
-    result.assert_outcomes(passed=5)
+    result.assert_outcomes(passed=4)
