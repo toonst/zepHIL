@@ -31,6 +31,13 @@ def pytest_addoption(parser):
         dest="fw_image",
         help="Firmware binary to program to device"
     )
+    group.addoption(
+        "--logfile",
+        action="store",
+        dest="logfile",
+        default="zephil.log",
+        help="Path to the serial log file"
+    )
 
 @pytest.fixture(scope="session")
 def board_name(request):
@@ -48,8 +55,12 @@ def baud(request):
 def fw_image(request):
     return request.config.getoption("fw_image")
 
+@pytest.fixture(scope="session")
+def logfile(request):
+    return request.config.getoption("logfile")
+
 @pytest.fixture(scope="module")
-def dut(request, port, baud, fw_image):
+def dut(request, port, baud, fw_image, logfile):
     board_name = request.getfixturevalue("board_name")
 
     if not board_name:
@@ -61,7 +72,7 @@ def dut(request, port, baud, fw_image):
 
     if board_name == "frdm_rw612":
         from pytest_zephil.frdm_rw612 import FRDMRW612
-        dut = FRDMRW612(port=port, baudrate=baud, fw_image=fw_image)
+        dut = FRDMRW612(port=port, baudrate=baud, fw_image=fw_image, logfile=logfile)
     else:
         pytest.skip("Board not supported")
 
