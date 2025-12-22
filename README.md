@@ -60,3 +60,7 @@ def test_device_reboot(dut, shell):
 ```bash
 pytest --board=frdm_rw612 --port=/dev/tty.usbmodem1234 --fw-image=zephyr.bin
 ```
+
+# Acknowledgement
+This module was inspired by Zephyr's twister implementation and Golioth's
+firmware SDK.
