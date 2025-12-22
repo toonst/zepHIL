@@ -1,7 +1,6 @@
-from pytest_hil.board import Board
-from pytest_hil.jlinkboard import JLinkBoard
+from pytest_zephil.board import Board
+from pytest_zephil.jlinkboard import JLinkBoard
 
-class FRDMRW612(Board, JLinkBoard):
+class FRDMRW612(JLinkBoard):
     def __init__(self, *args, **kwargs):
-        JLinkBoard.__init__(self, 'RW612')
-        Board.__init__(self, *args, **kwargs)
+        super().__init__('RW612', *args, **kwargs)

@@ -3,7 +3,8 @@ import pylink
 from .board import Board
 
 class JLinkBoard(Board):
-    def __init__(self, chip_name):
+    def __init__(self, chip_name, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.chip_name = chip_name
         self.jlink = None
 

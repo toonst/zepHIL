@@ -87,8 +87,13 @@ def dut(request, port, baud, fw_image, serial_number, bmp_port):
 
     print(f"\n[Zephil] Setting up DUT: {board_name} on {port}@{baud}")
 
-    dut = Board(port=port, baudrate=baud, fw_image=fw_image,
-                           serial_number=serial_number, bmp_port=bmp_port)
+    if board_name == "frdm_rw612":
+        from pytest_zephil.frdm_rw612 import FRDMRW612
+        dut = FRDMRW612(port=port, baudrate=baud, fw_image=fw_image,
+                        serial_number=serial_number, bmp_port=bmp_port)
+    else:
+        dut = Board(port=port, baudrate=baud, fw_image=fw_image,
+                    serial_number=serial_number, bmp_port=bmp_port)
 
     with dut.started():
         yield dut
