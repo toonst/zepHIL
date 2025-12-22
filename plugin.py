@@ -1,5 +1,5 @@
 import pytest
-from pytest_zephil.shell import Shell
+from zephil.shell import Shell
 
 def pytest_addoption(parser):
     """Register command line options."""
@@ -71,7 +71,7 @@ def dut(request, port, baud, fw_image, logfile):
     print(f"\n[Zephil] Setting up DUT: {board_name} on {port}@{baud}")
 
     if board_name == "frdm_rw612":
-        from pytest_zephil.frdm_rw612 import FRDMRW612
+        from zephil.frdm_rw612 import FRDMRW612
         dut = FRDMRW612(port=port, baudrate=baud, fw_image=fw_image, logfile=logfile)
     else:
         pytest.skip("Board not supported")

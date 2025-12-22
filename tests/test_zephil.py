@@ -1,6 +1,6 @@
 import pytest
-from pytest_zephil.board import Board
-from pytest_zephil.shell import Shell, ShellMCUbootArea, ShellMCUbootCommandParsed
+from zephil.board import Board
+from zephil.shell import Shell, ShellMCUbootArea, ShellMCUbootCommandParsed
 from unittest.mock import MagicMock
 
 def test_zephil_fixture(pytester, mocker):
@@ -20,8 +20,8 @@ def test_zephil_fixture(pytester, mocker):
     pytester.makepyfile(r"""
 import pytest
 import re # Added import
-from pytest_zephil.board import Board
-from pytest_zephil.shell import Shell, ShellMCUbootArea, ShellMCUbootCommandParsed
+from zephil.board import Board
+from zephil.shell import Shell, ShellMCUbootArea, ShellMCUbootCommandParsed
 import time
 from unittest.mock import MagicMock
 

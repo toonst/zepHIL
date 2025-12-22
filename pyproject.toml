@@ -29,7 +29,7 @@ dev = [
 Homepage = "https://github.com/toonst/zepHIL"
 
 [project.entry-points.pytest11]
-zephil = "pytest_zephil.plugin"
+zephil = "zephil.plugin"
 
 [tool.setuptools.packages.find]
 where = ["."]

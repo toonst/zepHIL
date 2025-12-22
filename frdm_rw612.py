@@ -1,4 +1,4 @@
-from pytest_zephil.jlinkboard import JLinkBoard
+from zephil.jlinkboard import JLinkBoard
 
 class FRDMRW612(JLinkBoard):
     def __init__(self, *args, **kwargs):

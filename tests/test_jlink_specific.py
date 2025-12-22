@@ -1,8 +1,8 @@
 import pytest
 from unittest.mock import MagicMock, patch
 import pylink
-from pytest_zephil.jlinkboard import JLinkBoard
-from pytest_zephil.frdm_rw612 import FRDMRW612
+from zephil.jlinkboard import JLinkBoard
+from zephil.frdm_rw612 import FRDMRW612
 
 @pytest.fixture
 def mock_jlink_connection():
