@@ -66,5 +66,5 @@ def dut(request):
             if option("flash"):
                 board.flash(option("flash"))
             else:
-                board.wait_for_shell()
+                board.shell_wait_for_prompt()
             yield board

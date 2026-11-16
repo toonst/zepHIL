@@ -17,45 +17,45 @@ def board(device):
         yield board
 
 
-def test_run_returns_what_the_command_printed(board):
-    assert board.run("version") == ["Zephyr version 3.7.0"]
+def test_shell_run_returns_what_the_command_printed(board):
+    assert board.shell_run("version") == ["Zephyr version 3.7.0"]
 
 
-def test_run_can_be_repeated(board):
-    assert board.run("version") == board.run("version")
+def test_shell_run_can_be_repeated(board):
+    assert board.shell_run("version") == board.shell_run("version")
 
 
-def test_run_leaves_out_log_messages(board, device):
+def test_shell_run_leaves_out_log_messages(board, device):
     device.commands["status"] = [
         "[00:00:01.000,000] <inf> app: started",
         "ready",
     ]
 
-    assert board.run("status") == ["ready"]
+    assert board.shell_run("status") == ["ready"]
 
 
-def test_run_times_out_when_no_prompt_comes_back(board, device):
+def test_shell_run_times_out_when_no_prompt_comes_back(board, device):
     device.commands["hang"] = None
 
     with pytest.raises(TimeoutError):
-        board.run("hang", timeout=0.2)
+        board.shell_run("hang", timeout=0.2)
 
 
-def test_set_setting_runs_the_settings_command(board, device):
-    board.set_setting("wifi/ssid", "home")
+def test_shell_set_setting_runs_the_settings_command(board, device):
+    board.shell_set_setting("wifi/ssid", "home")
 
     assert device.ran == ["settings set wifi/ssid home"]
 
 
-def test_wait_for_shell_finds_a_running_shell(board):
-    board.wait_for_shell()
+def test_shell_wait_for_prompt_finds_a_running_shell(board):
+    board.shell_wait_for_prompt()
 
 
-def test_wait_for_shell_gives_up_on_a_silent_board(board, device):
+def test_shell_wait_for_prompt_gives_up_on_a_silent_board(board, device):
     device.responsive = False
 
     with pytest.raises(TimeoutError, match="shell"):
-        board.wait_for_shell(timeout=0.2)
+        board.shell_wait_for_prompt(timeout=0.2)
 
 
 def test_wait_for_line_stops_at_the_first_match(board, device):
@@ -74,26 +74,26 @@ def test_wait_for_line_ignores_an_unfinished_line(board, device):
         board.wait_for_line("line ending", timeout=0.2)
 
 
-def test_reboot_restarts_the_board_and_waits_for_the_shell(board, device):
-    board.reboot()
+def test_shell_reboot_restarts_the_board_and_waits_for_the_shell(board, device):
+    board.shell_reboot()
 
     assert device.boots == 2
-    assert board.run("version") == ["Zephyr version 3.7.0"]
+    assert board.shell_run("version") == ["Zephyr version 3.7.0"]
 
 
-def test_reboot_times_out_when_the_board_does_not_come_back(board, device):
+def test_shell_reboot_times_out_when_the_board_does_not_come_back(board, device):
     board.timeout = 0.2
     device.responsive = False
 
     with pytest.raises(TimeoutError):
-        board.reboot()
+        board.shell_reboot()
 
 
 def test_output_is_logged_with_a_timestamp(device):
     log = io.StringIO()
 
     with make_board(log=log).connected() as board:
-        board.run("version")
+        board.shell_run("version")
 
     timestamp = r"\[\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3}\]"
     logged = log.getvalue().splitlines()

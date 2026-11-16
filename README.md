@@ -51,23 +51,23 @@ pytest --board=frdm_rw612 --serial-port=/dev/ttyACM0 --flash=zephyr.hex
 
 ```python
 def test_version(dut):
-    lines = dut.run("version")
+    lines = dut.shell_run("version")
 
     assert "Zephyr version" in lines[0]
 
 
 def test_shell_works_after_a_reboot(dut):
-    dut.reboot()
+    dut.shell_reboot()
 
-    assert dut.run("version")
+    assert dut.shell_run("version")
 
 
 def test_update_keeps_the_settings(dut):
-    dut.set_setting("app/name", "kitchen")
+    dut.shell_set_setting("app/name", "kitchen")
 
     dut.flash("build/update.hex")
 
-    assert dut.run("app name") == ["kitchen"]
+    assert dut.shell_run("app name") == ["kitchen"]
 ```
 
 All tests share one `dut`: the board stays connected for the whole test run.
@@ -78,20 +78,20 @@ follow.
 
 | Method | What it does |
 |---|---|
-| `run(command)` | Runs a shell command and returns the lines it printed. Log messages are left out. |
-| `set_setting(key, value)` | Runs `settings set <key> <value>`. |
+| `shell_run(command)` | Runs a shell command and returns the lines it printed. Log messages are left out. |
+| `shell_set_setting(key, value)` | Runs `settings set <key> <value>`. |
 | `wait_for_line(pattern)` | Waits for an output line that matches the regex. Returns the lines up to it. |
-| `wait_for_shell()` | Presses Enter until the shell prompt appears. |
-| `reboot()` | Reboots with the shell command `kernel reboot cold`. |
+| `shell_wait_for_prompt()` | Presses Enter until the shell prompt appears. |
+| `shell_reboot()` | Reboots with the shell command `kernel reboot cold`. |
 | `reset()` | Resets the chip through the J-Link probe. |
 | `flash(hex_file)` | Flashes firmware through the J-Link probe. |
 | `erase()` | Erases the whole flash through the J-Link probe. |
 | `read_memory(address, size)` | Reads memory through the J-Link probe and returns the bytes. |
 
-`reboot()`, `reset()` and `flash()` return once the board has booted and its
-shell answers again. A method that waits raises `TimeoutError` after 20
-seconds. `run` and the `wait_for_...` methods take a `timeout` argument to
-change that.
+`shell_reboot()`, `reset()` and `flash()` return once the board has booted
+and its shell answers again. A method that waits raises `TimeoutError` after
+20 seconds. `shell_run`, `shell_wait_for_prompt` and `wait_for_line` take a
+`timeout` argument to change that.
 
 zepHIL expects exactly one J-Link probe to be attached.
 

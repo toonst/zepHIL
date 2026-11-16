@@ -20,14 +20,14 @@ class Board:
         transport: Transport,
         log: TextIO | None = None,
         name: str = "board",
-        prompt: str = "uart:~$",
+        shell_prompt: str = "uart:~$",
         timeout: float = 20.0,
     ):
         """`timeout` is how many seconds the board gets to answer or to boot."""
         self.transport = transport
         self.log = log
         self.name = name
-        self.prompt = prompt
+        self.shell_prompt = shell_prompt
         self.timeout = timeout
 
         self._lines: queue.SimpleQueue[str] = queue.SimpleQueue()
@@ -109,7 +109,7 @@ class Board:
             f"{self.name} printed no line matching {pattern!r} in {timeout} s"
         )
 
-    def wait_for_shell(self, timeout: float | None = None) -> None:
+    def shell_wait_for_prompt(self, timeout: float | None = None) -> None:
         """Press Enter until the shell prompt shows up."""
         if timeout is None:
             timeout = self.timeout
@@ -118,7 +118,7 @@ class Board:
         while time.monotonic() < deadline:
             self.write(b"\n")
             try:
-                self.wait_for_line(re.escape(self.prompt), timeout=0.5)
+                self.wait_for_line(re.escape(self.shell_prompt), timeout=0.5)
                 return
             except TimeoutError:
                 continue
@@ -131,9 +131,9 @@ class Board:
         an earlier banner is not mistaken for the new one.
         """
         self.wait_for_line(BOOT_BANNER, timeout)
-        self.wait_for_shell(timeout)
+        self.shell_wait_for_prompt(timeout)
 
-    def run(self, command: str, timeout: float | None = None) -> list[str]:
+    def shell_run(self, command: str, timeout: float | None = None) -> list[str]:
         """Run a shell command and return the lines it printed.
 
         The echoed command, the prompt and log messages are left out.
@@ -151,15 +151,15 @@ class Board:
             lines += self.wait_for_line(re.escape(command), timeout=1.0)
         except TimeoutError:
             pass
-        lines += self.wait_for_line(re.escape(self.prompt), timeout)
+        lines += self.wait_for_line(re.escape(self.shell_prompt), timeout)
 
-        noise = re.compile(f"{re.escape(self.prompt)}|{LOG_MESSAGE}")
+        noise = re.compile(f"{re.escape(self.shell_prompt)}|{LOG_MESSAGE}")
         return [line for line in lines if not noise.search(line)]
 
-    def set_setting(self, key: str, value: str) -> None:
-        self.run(f"settings set {key} {value}")
+    def shell_set_setting(self, key: str, value: str) -> None:
+        self.shell_run(f"settings set {key} {value}")
 
-    def reboot(self) -> None:
+    def shell_reboot(self) -> None:
         """Reboot the board from its shell and wait until the shell is back."""
         self.discard_output()
         # A single Enter, and no waiting for a prompt: the board reboots

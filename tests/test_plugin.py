@@ -2,7 +2,7 @@ import pytest
 
 HIL_TEST = """
 def test_version(dut):
-    assert dut.run("version") == ["Zephyr version 3.7.0"]
+    assert dut.shell_run("version") == ["Zephyr version 3.7.0"]
 """
 OPTIONS = ["--board=frdm_rw612", "--serial-port=/dev/fake"]
 
@@ -50,7 +50,7 @@ def test_a_test_can_flash_other_firmware(pytester, device, jlink):
         """
         def test_update(dut):
             dut.flash("update.hex")
-            assert dut.run("version")
+            assert dut.shell_run("version")
         """
     )
 

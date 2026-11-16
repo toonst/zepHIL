@@ -45,7 +45,7 @@ def test_reset_restarts_the_board_and_waits_for_the_shell(board, jlink, device):
 
     jlink.reset.assert_called_once_with(halt=False)
     assert device.boots == 2
-    assert board.run("version") == ["Zephyr version 3.7.0"]
+    assert board.shell_run("version") == ["Zephyr version 3.7.0"]
 
 
 def test_erase(board, jlink):
@@ -60,7 +60,7 @@ def test_flash_writes_the_firmware_and_waits_for_the_shell(board, jlink, device)
     jlink.flash_file.assert_called_once_with("zephyr.hex", 0)
     jlink.erase.assert_not_called()
     assert device.boots == 2
-    assert board.run("version") == ["Zephyr version 3.7.0"]
+    assert board.shell_run("version") == ["Zephyr version 3.7.0"]
 
 
 def test_flash_can_erase_the_chip_first(board, jlink):
