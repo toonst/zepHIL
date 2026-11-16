@@ -8,46 +8,41 @@ from typing import TextIO
 
 from zephil.transport import Transport
 
+BOOT_BANNER = "Booting Zephyr OS"
+LOG_MESSAGE = "<dbg>|<inf>|<wrn>|<err>"
+
 
 class Board:
     """A Zephyr device, driven through its shell over a transport."""
 
-    # Seconds to wait for the firmware to boot once the transport is open.
-    boot_delay = 6.0
-
     def __init__(
         self,
         transport: Transport,
-        fw_image: str | None = None,
         log: TextIO | None = None,
         name: str = "board",
-        shell_prompt: str = "uart:~$",
-        shell_timeout: float = 20.0,
+        prompt: str = "uart:~$",
+        timeout: float = 20.0,
     ):
+        """`timeout` is how many seconds the board gets to answer or to boot."""
         self.transport = transport
-        self.fw_image = fw_image
         self.log = log
         self.name = name
-        self.shell_prompt = shell_prompt.rstrip("\r\n")
-        self.shell_timeout = shell_timeout
+        self.prompt = prompt
+        self.timeout = timeout
 
         self._lines: queue.SimpleQueue[str] = queue.SimpleQueue()
         self._stop = threading.Event()
         self._read_error: Exception | None = None
 
     @contextmanager
-    def started(self):
-        """Flash the firmware if one was given, then connect to the board."""
-        if self.fw_image:
-            self.program(self.fw_image)
-
+    def connected(self):
+        """Open the transport and collect the board's output while inside."""
         self._stop.clear()
         self._read_error = None
         reader = threading.Thread(target=self._read_loop, daemon=True)
         self.transport.open()
         reader.start()
         try:
-            time.sleep(self.boot_delay)
             yield self
         finally:
             self._stop.set()
@@ -83,12 +78,12 @@ class Board:
                 if remaining <= 0:
                     return None
 
-    def send_all(self, data: bytes) -> None:
+    def write(self, data: bytes) -> None:
         if not self.transport.is_open:
-            raise RuntimeError("Board not started")
+            raise RuntimeError(f"{self.name} is not connected")
         self.transport.write(data)
 
-    def clear_buffer(self) -> None:
+    def discard_output(self) -> None:
         """Forget the lines received so far."""
         try:
             while True:
@@ -96,78 +91,82 @@ class Board:
         except queue.Empty:
             pass
 
-    def readlines_until(self, regex: str, timeout_s: float = 20.0) -> list[str]:
-        """Return the received lines up to and including the first match of `regex`.
+    def wait_for_line(self, pattern: str, timeout: float | None = None) -> list[str]:
+        """Wait for an output line that matches the regex `pattern`.
 
-        Only complete lines are matched. Raises TimeoutError if none matches
-        within `timeout_s` seconds.
+        Returns the lines received up to and including that line. Only
+        complete lines are matched. Raises TimeoutError if none matches.
         """
-        deadline = time.monotonic() + timeout_s
+        if timeout is None:
+            timeout = self.timeout
+        deadline = time.monotonic() + timeout
         lines = []
         while (line := self._next_line(deadline)) is not None:
             lines.append(line)
-            if re.search(regex, line):
+            if re.search(pattern, line):
                 return lines
-        raise TimeoutError(f"Timeout waiting for {regex}")
+        raise TimeoutError(
+            f"{self.name} printed no line matching {pattern!r} in {timeout} s"
+        )
 
-    def shell_wait_for_prompt(self, timeout: float | None = None) -> bool:
-        """Press Enter until the shell prompt shows up. Return False on timeout."""
+    def wait_for_shell(self, timeout: float | None = None) -> None:
+        """Press Enter until the shell prompt shows up."""
         if timeout is None:
-            timeout = self.shell_timeout
+            timeout = self.timeout
         deadline = time.monotonic() + timeout
-        self.clear_buffer()
+        self.discard_output()
         while time.monotonic() < deadline:
-            self.send_all(b"\n")
+            self.write(b"\n")
             try:
-                self.readlines_until(re.escape(self.shell_prompt), timeout_s=0.5)
-                return True
+                self.wait_for_line(re.escape(self.prompt), timeout=0.5)
+                return
             except TimeoutError:
                 continue
-        return False
+        raise TimeoutError(f"The shell of {self.name} did not answer in {timeout} s")
 
-    def shell_exec_command(
-        self, command: str, timeout: float | None = None
-    ) -> list[str]:
-        """Run a shell command and return the lines printed up to the next prompt.
+    def wait_for_boot(self, timeout: float | None = None) -> None:
+        """Wait for the boot banner, then for the shell.
 
-        Enter is sent twice. The shell prints its prompt without a line ending,
-        so the second Enter is what completes the prompt line that marks the
-        end of the output.
+        Call `discard_output()` before whatever restarts the board, so that
+        an earlier banner is not mistaken for the new one.
         """
-        if timeout is None:
-            timeout = self.shell_timeout
-        self.clear_buffer()
-        self.send_all(f"{command}\n\n".encode())
+        self.wait_for_line(BOOT_BANNER, timeout)
+        self.wait_for_shell(timeout)
+
+    def run(self, command: str, timeout: float | None = None) -> list[str]:
+        """Run a shell command and return the lines it printed.
+
+        The echoed command, the prompt and log messages are left out.
+        """
+        self.discard_output()
+        # Enter is sent twice. The shell prints its prompt without a line
+        # ending, so the second Enter is what completes the prompt line that
+        # marks the end of the output.
+        self.write(f"{command}\n\n".encode())
 
         lines = []
         try:
             # The echoed command can share its line with a prompt, so read
             # past it before looking for the prompt that ends the output.
-            lines += self.readlines_until(re.escape(command), timeout_s=1.0)
+            lines += self.wait_for_line(re.escape(command), timeout=1.0)
         except TimeoutError:
             pass
-        lines += self.readlines_until(re.escape(self.shell_prompt), timeout_s=timeout)
-        return lines
+        lines += self.wait_for_line(re.escape(self.prompt), timeout)
 
-    def shell_get_filtered_output(self, command_lines: list[str]) -> list[str]:
-        """Drop the prompt lines and log messages from `shell_exec_command` output."""
-        noise = re.compile(
-            "|".join([re.escape(self.shell_prompt), "<dbg>", "<inf>", "<wrn>", "<err>"])
-        )
-        return [line for line in command_lines if not noise.search(line)]
+        noise = re.compile(f"{re.escape(self.prompt)}|{LOG_MESSAGE}")
+        return [line for line in lines if not noise.search(line)]
 
-    def shell_reset(self) -> None:
-        """Reboot the board from the shell and wait until the shell is back."""
-        self.clear_buffer()
+    def set_setting(self, key: str, value: str) -> None:
+        self.run(f"settings set {key} {value}")
+
+    def reboot(self) -> None:
+        """Reboot the board from its shell and wait until the shell is back."""
+        self.discard_output()
         # A single Enter, and no waiting for a prompt: the board reboots
         # before it can print one.
-        self.send_all(b"kernel reboot cold\n")
-        self.readlines_until("Booting Zephyr OS", timeout_s=self.shell_timeout)
-        if not self.shell_wait_for_prompt():
-            raise TimeoutError("Timeout waiting for the shell after a reboot")
+        self.write(b"kernel reboot cold\n")
+        self.wait_for_boot()
 
-    def shell_set_setting(self, key: str, value: str) -> None:
-        self.shell_exec_command(f"settings set {key} {value}")
-
-    def program(self, fw_image: str) -> None:
+    def flash(self, hex_file: str) -> None:
+        """Write firmware to the board and wait until its shell is up."""
         raise NotImplementedError(f"{type(self).__name__} cannot flash firmware")

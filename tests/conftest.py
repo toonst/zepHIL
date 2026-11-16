@@ -6,8 +6,6 @@ import pylink
 import pytest
 import serial
 
-from zephil.board import Board
-
 pytest_plugins = ["pytester"]
 
 
@@ -23,6 +21,7 @@ class FakeDevice:
         self.responsive = True
         self.read_error = None
         self.boots = 0
+        self.opens = 0
         self.ran = []
         self.is_open = False
         self._typed = bytearray()
@@ -32,7 +31,8 @@ class FakeDevice:
     def __call__(self, port, baudrate, timeout):
         """Called in place of `serial.Serial(...)`."""
         self.is_open = True
-        self._boot()
+        self.opens += 1
+        self.boot()
         return self
 
     def close(self):
@@ -67,7 +67,9 @@ class FakeDevice:
         with self._lock:
             self._output += data
 
-    def _boot(self):
+    def boot(self):
+        if not self.responsive:
+            return
         self.boots += 1
         self._typed.clear()
         self.emit(self.BANNER + self.PROMPT)
@@ -79,7 +81,7 @@ class FakeDevice:
             self.ran.append(command)
         if command == "kernel reboot cold":
             # A real board resets at once: nothing more is printed or read.
-            self._boot()
+            self.boot()
             return False
 
         self.emit(b"\r\n")
@@ -95,16 +97,16 @@ class FakeDevice:
 
 @pytest.fixture
 def device(monkeypatch):
-    """A fake board on every serial port, and no waiting for it to boot."""
+    """A fake board on every serial port."""
     device = FakeDevice()
     monkeypatch.setattr(serial, "Serial", device)
-    monkeypatch.setattr(Board, "boot_delay", 0)
     return device
 
 
 @pytest.fixture
-def jlink(monkeypatch):
-    """A fake J-Link probe that records how it is used."""
+def jlink(monkeypatch, device):
+    """A fake J-Link probe that records how it is used and restarts the board."""
     jlink = create_autospec(pylink.JLink, instance=True)
+    jlink.reset.side_effect = lambda ms=0, halt=True: halt or device.boot()
     monkeypatch.setattr(pylink, "JLink", lambda: jlink)
     return jlink

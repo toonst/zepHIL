@@ -3,10 +3,10 @@
 A pytest plugin for Hardware-in-the-Loop (HIL) tests on Zephyr boards.
 
 Your tests get a `dut` fixture: a real board that you talk to through its
-Zephyr shell over a serial port. zepHIL can also flash a firmware image first.
+Zephyr shell over a serial port. zepHIL can also flash firmware onto it.
 
 Unlike `twister`, zepHIL needs no `west`, no Zephyr repository and no build
-directory. A board and, if you want to flash, a firmware file are enough.
+directory. A board and, if you want to flash, a `.hex` file are enough.
 
 ## Requirements
 
@@ -27,60 +27,71 @@ pytest loads the plugin automatically once it is installed.
 
 ## Usage
 
+Test the firmware that is already on the board:
+
 ```bash
-pytest --board=frdm_rw612 --port=/dev/ttyACM0 --fw-image=zephyr.hex
+pytest --board=frdm_rw612 --serial-port=/dev/ttyACM0
+```
+
+Flash firmware first, once, before the first test:
+
+```bash
+pytest --board=frdm_rw612 --serial-port=/dev/ttyACM0 --flash=zephyr.hex
 ```
 
 | Option | Description | Default |
 |---|---|---|
 | `--board` | Board to test. Without it, tests that use `dut` are skipped. | |
-| `--port` | Serial port of the board's shell. Required with `--board`. | |
-| `--baud` | Serial baud rate. | `115200` |
-| `--fw-image` | Firmware to flash. Without it, nothing is flashed. | |
-| `--logfile` | File that receives everything the board prints. | `zephil.log` |
-
-Use a `.hex` or `.elf` file for `--fw-image`. A `.bin` file does not say where
-it belongs in memory, and zepHIL writes it to address 0.
+| `--serial-port` | Serial port of the board's shell. Required with `--board`. | |
+| `--baud-rate` | Baud rate of the serial port. | `115200` |
+| `--flash` | `.hex` file to flash before the first test. | nothing is flashed |
+| `--serial-log` | File that receives everything the board prints. | `zephil.log` |
 
 ### Writing tests
 
 ```python
-def test_shell_version(dut):
-    lines = dut.shell_exec_command("version")
+def test_version(dut):
+    lines = dut.run("version")
 
-    assert any("Zephyr version" in line for line in lines)
+    assert "Zephyr version" in lines[0]
 
 
 def test_shell_works_after_a_reboot(dut):
-    dut.shell_reset()
+    dut.reboot()
 
-    assert dut.shell_exec_command("version")
+    assert dut.run("version")
+
+
+def test_update_keeps_the_settings(dut):
+    dut.set_setting("app/name", "kitchen")
+
+    dut.flash("build/update.hex")
+
+    assert dut.run("app name") == ["kitchen"]
 ```
 
-`dut` is set up once per test file: zepHIL flashes the firmware, opens the
-serial port and waits 6 seconds for the board to boot.
+All tests share one `dut`: the board stays connected for the whole test run.
+A test that flashes other firmware leaves it on the board for the tests that
+follow.
 
 ### What `dut` can do
 
-Through the shell:
-
 | Method | What it does |
 |---|---|
-| `shell_exec_command(command)` | Runs a command. Returns the printed lines, including the echoed command and the final prompt. |
-| `shell_get_filtered_output(lines)` | Removes prompt lines and log messages from those lines. |
-| `shell_wait_for_prompt()` | Presses Enter until the prompt appears. Returns `False` on timeout. |
-| `shell_reset()` | Reboots with `kernel reboot cold` and waits for the shell to come back. |
-| `shell_set_setting(key, value)` | Runs `settings set <key> <value>`. |
-| `readlines_until(regex)` | Waits for an output line that matches. Returns the lines up to it. |
+| `run(command)` | Runs a shell command and returns the lines it printed. Log messages are left out. |
+| `set_setting(key, value)` | Runs `settings set <key> <value>`. |
+| `wait_for_line(pattern)` | Waits for an output line that matches the regex. Returns the lines up to it. |
+| `wait_for_shell()` | Presses Enter until the shell prompt appears. |
+| `reboot()` | Reboots with the shell command `kernel reboot cold`. |
+| `reset()` | Resets the chip through the J-Link probe. |
+| `flash(hex_file)` | Flashes firmware through the J-Link probe. |
+| `erase()` | Erases the whole flash through the J-Link probe. |
+| `read_memory(address, size)` | Reads memory through the J-Link probe and returns the bytes. |
 
-Through the J-Link probe:
-
-| Method | What it does |
-|---|---|
-| `reset()` | Resets the chip. |
-| `erase()` | Erases the whole flash. |
-| `program(fw_image)` | Flashes a firmware file. |
-| `dump_memory(address, size)` | Reads memory and returns the bytes. |
+`reboot()`, `reset()` and `flash()` return once the board has booted and its
+shell answers again. A method that waits raises `TimeoutError` after 20
+seconds. `run` and the `wait_for_...` methods take a `timeout` argument to
+change that.
 
 zepHIL expects exactly one J-Link probe to be attached.
 

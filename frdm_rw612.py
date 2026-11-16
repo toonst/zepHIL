@@ -1,5 +1,5 @@
-from zephil.jlinkboard import JLinkBoard
+from zephil.jlink_board import JLinkBoard
 
 
 class FRDMRW612(JLinkBoard):
-    chip_name = "RW612"
+    jlink_device = "RW612"

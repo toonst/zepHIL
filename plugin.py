@@ -12,68 +12,59 @@ BOARDS = {
 
 
 def pytest_addoption(parser):
-    group = parser.getgroup("zephil", "Zephyr HIL Integration")
+    group = parser.getgroup("zephil", "Zephyr hardware-in-the-loop tests")
     group.addoption(
         "--board",
         choices=sorted(BOARDS),
-        help="Target board for HIL testing",
+        help="Board to test. Without it, tests that use `dut` are skipped.",
     )
     group.addoption(
-        "--port",
-        help="The port to which the device is attached (eg: /dev/ttyACM0)",
+        "--serial-port",
+        help="Serial port of the board's shell (eg: /dev/ttyACM0)",
     )
     group.addoption(
-        "--baud",
+        "--baud-rate",
         type=int,
         default=115200,
-        help="Serial port baud rate (default: 115200)",
+        help="Baud rate of the serial port (default: 115200)",
     )
     group.addoption(
-        "--fw-image",
-        help="Firmware image to program to device",
+        "--flash",
+        metavar="HEX_FILE",
+        help="Firmware to flash once, before the first test. "
+        "Without it, the tests run on the firmware the board already has.",
     )
     group.addoption(
-        "--logfile",
+        "--serial-log",
         default="zephil.log",
-        help="Path to the serial log file (default: zephil.log)",
+        help="File that receives everything the board prints (default: zephil.log)",
     )
 
 
 def pytest_configure(config):
-    if config.getoption("board") and not config.getoption("port"):
-        raise pytest.UsageError("--board also needs --port")
+    if config.getoption("board") and not config.getoption("serial_port"):
+        raise pytest.UsageError("--board also needs --serial-port")
 
 
 @pytest.fixture(scope="session")
-def _zephil_serial_log(request):
-    """One file that collects the serial output of the whole test run."""
-    logfile = request.config.getoption("logfile")
-    if not logfile:
-        yield None
-        return
-
-    path = Path(logfile)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Line buffered, so the file can be followed while the tests run.
-    with path.open("w", buffering=1) as log:
-        yield log
-
-
-@pytest.fixture(scope="module")
 def dut(request):
-    """The board under test: flashed if --fw-image was given, and connected."""
+    """The board under test, connected for the whole test run."""
     option = request.config.getoption
     name = option("board")
     if not name:
         pytest.skip("No --board specified for HIL test.")
 
-    print(f"\n[Zephil] Setting up DUT: {name} on {option('port')}@{option('baud')}")
-    board = BOARDS[name](
-        transport=SerialTransport(port=option("port"), baudrate=option("baud")),
-        fw_image=option("fw_image"),
-        # Requested here, not as an argument, so a skipped run leaves no file.
-        log=request.getfixturevalue("_zephil_serial_log"),
-        name=name,
-    )
-    with board.started():
-        yield board
+    port, baud_rate = option("serial_port"), option("baud_rate")
+    print(f"\n[Zephil] Setting up DUT: {name} on {port}@{baud_rate}")
+
+    log_path = Path(option("serial_log"))
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    # Line buffered, so the file can be followed while the tests run.
+    with log_path.open("w", buffering=1) as log:
+        board = BOARDS[name](SerialTransport(port, baud_rate), log=log, name=name)
+        with board.connected():
+            if option("flash"):
+                board.flash(option("flash"))
+            else:
+                board.wait_for_shell()
+            yield board
